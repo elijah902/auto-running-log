@@ -21,10 +21,10 @@ interface GenerateNotesRequest {
 export async function POST(request: NextRequest) {
   try {
     const body: GenerateNotesRequest = await request.json();
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
-      return NextResponse.json({ error: "OpenAI API key not configured" }, { status: 500 });
+      return NextResponse.json({ error: "Gemini API key not configured" }, { status: 500 });
     }
 
     const daysWithRuns = body.days.filter((day) => day.activities.filter((a) => a.type === "Run").length > 0);
@@ -64,32 +64,27 @@ ${daySummaries}
 
 Write notes now in JSON format:`;
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: "You write running log notes. Keep notes conversational, 2-3 sentences per day. Return ONLY valid JSON.",
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 1000,
           },
-          { role: "user", content: prompt },
-        ],
-        temperature: 0.7,
-        max_tokens: 1000,
-      }),
-    });
+        }),
+      }
+    );
 
     if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status}`);
+      throw new Error(`Gemini API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const content = data.choices[0]?.message?.content || "{}";
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
 
     let notes: Record<string, string> = {};
     try {
